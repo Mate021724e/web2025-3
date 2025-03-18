@@ -1,70 +1,37 @@
-const fs = require("fs");
-const path = require("path");
-const yargs = require("yargs");
+const { Command } = require('commander');
+const fs = require('fs');
 
-// Обробка аргументів командного рядка
-const argv = yargs
-    .option("i", {
-        alias: "input",
-        description: "Шлях до файлу для читання (обов'язковий параметр)",
-        type: "string",
-        demandOption: true
-    })
-    .option("o", {
-        alias: "output",
-        description: "Шлях до файлу для запису результату",
-        type: "string"
-    })
-    .option("d", {
-        alias: "display",
-        description: "Вивести результат у консоль",
-        type: "boolean",
-        default: false
-    })
-    .argv;
+const program = new Command();
 
-// Перевірка на обов'язковий параметр input
-if (!argv.input) {
-    console.error("Please, specify input file");
-    process.exit(1);
+program
+  .requiredOption('-i, --input <path>', 'Path to input JSON file')
+  .option('-o, --output <path>', 'Path to output file')
+  .option('-d, --display', 'Display result in console');
+
+program.parse(process.argv);
+
+const options = program.opts();
+
+if (!fs.existsSync(options.input)) {
+  console.error('Cannot find input file');
+  process.exit(1);
 }
 
-// Шлях до вхідного файлу
-const inputFilePath = path.resolve(argv.input);
+// Читання JSON-файлу
+const rawData = fs.readFileSync(options.input);
+const data = JSON.parse(rawData);
 
-// Читання та обробка файлу
-try {
-    const data = fs.readFileSync(inputFilePath, "utf8");
+// Пошук активу з найменшим значенням
+const minAsset = data.reduce((min, asset) => 
+  asset.value < min.value ? asset : min
+);
 
-    // Розбираємо JSON
-    const reserves = JSON.parse(data);
+const result = `${minAsset.txt}: ${minAsset.value}`;
 
-    // Шукаємо об'єкт з мінімальним значенням
-    const minReserve = reserves.reduce((min, item) => 
-        item.value < min.value ? item : min
-    );
+if (options.display) {
+  console.log(result);
+}
 
-    // Формуємо рядок для виведення
-    const output = `${minReserve.txt}:${minReserve.value}`;
-
-    // Якщо задано параметр display, виводимо у консоль
-    if (argv.display) {
-        console.log(output);
-    }
-
-    // Якщо задано параметр output, записуємо у файл
-    if (argv.output) {
-        const outputFilePath = path.resolve(argv.output);
-        fs.writeFileSync(outputFilePath, output);
-        console.log("Результат записано у", outputFilePath);
-    }
-
-} catch (err) {
-    // Помилка при зчитуванні файлу
-    if (err.code === "ENOENT") {
-        console.error("Cannot find input file");
-    } else {
-        console.error("Помилка при обробці файлу:", err.message);
-    }
-    process.exit(1);
+if (options.output) {
+  fs.writeFileSync(options.output, result);
 }
